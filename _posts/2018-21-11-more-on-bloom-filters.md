@@ -15,7 +15,7 @@ Let $$S = \{x_1,x_2, x_3,...,x_n\}$$ be a set in universe $$U$$ on which we whic
 Bloom filters (BF) is an extremely simple solution to this problem.
 They have been widely adopted in network routers, web caches and packet inspection. Bloom filters are also at work in [Uber's M3 platform](https://eng.uber.com/m3/), [Blockchains](https://medium.com/@midnight426/bloom-filters-are-also-used-in-the-bitcoin-digital-currency-peer-to-peer-communication-d2e8aa124f68) and URL shornening service [Bitly](https://github.com/bitly/dablooms). In the past [Google Chrome](https://bugs.chromium.org/p/chromium/issues/detail?id=71832) used Bloom filters to detect malicious URLs but have moved on to use Prefix-Set.
 
-# Bloom filter construction
+# Solution: Standard Bloom filter (SBF)
 Take a bit array $$B$$ of size $$m$$. Let $$H = \{h_1(x), h_2(x) ..., h_k(x)\}$$ be a family of k independent hash functions such that $$h(x)$$ is an integer in $$[0,m-1]$$. For every element in $$S$$, get k indices using all functions in $$H$$ and set those indices to 1 in our bit array. If a bit is already set to 1 by previous element, do nothing.
 
 To check if an element $$y \in S$$, obtain k indices using $$\{h_1(y), h_2(y), .. h_k(y)\}$$.\\
@@ -29,26 +29,54 @@ $$P_{fp} = \bigg( 1 - e^{-kn/m}\bigg)^k$$
 
 Derivation is straighforward and can be easily found online. [Wikipedia](https://en.wikipedia.org/wiki/Bloom_filter#Probability_of_false_positives)
 
-# The problem: Part 2
+# Problem with SBF
 Bloom filters perform well when the set $$S$$ is static. For many real world applications, this is not the case and $$S$$ changes over time with addition and deletion of elements, example routers monitoring network flows witness new connections being established and others getting closed. 
 > Deletion of elements from the set $$S$$ may lead to **False Negatives** in a Bloom filter.
 
 The reason is self evident. If we set $$B[h_i(x')]=0$$ for $$i=\{1,2,...,k\}$$ while deleting $$x'$$, we may also be setting $$B[h_m(x'')]=0$$ where $$h_m(x'')=h_i(x')$$ for some $$i$$. Subsequent membership queries for $$x''$$ will wrongly output *false*. This has prompted researchers to come up with several solutions which allow delete operation in a BF. Three of these are discussed below.
 
-# Counting Bloom Filter (CBF)
-We can make a small change to bit array $$B$$ to overcome the problem of false negatives on deletion. Instead of creating a bit array, each cell becomes an *n* bit counter. When $$x$$ gets hashed to a cell, we increment the counter by 1. For deletion, each $$B[h_i(x)]$$ is decremented by 1. A query $$y$$ is believed to be in the set if all $$B[h_i(y)]$$ are greater than zero. The size of counter is usually 4 bits. The probability of overflow with 4 bits is extremely low [1]
+# Solution: Counting Bloom Filter (CBF)
+We can make a small change to bit array $$B$$ to overcome the problem of false negatives on deletion. Instead of creating a bit array, each cell becomes an *n* bit counter. When $$x$$ gets hashed to a cell, we increment the counter by 1. For deletion, each $$B[h_i(x)]$$ is decremented by 1. A query $$y$$ is believed to be in the set if all $$B[h_i(y)]$$ are greater than zero. Probability of false positives remain the same as a SBF. The size of counter is usually 4 bits. The probability of overflow with 4 bits is extremely low [1]
 
 $$P(max(c)>16) \leq 1.37\times 10^{-15} \times m$$
 
-# The problem: Part 3
-Until now, we have assumed that delete operation will be requested for an element from $$S$$ which means that we have access to $$S$$. However, this assumption is against one of the 3 requirements we initially proclaimed for designing a BF i.e a datastructure with a small space footprint which can approximately represent a large set. High speed networking hardware have to track membership of more than 100,000 IP addresses with limited memory. This makes it unfeasable to store entire states along with the CBF. In this case, deletions may not always come from the set.
+# Problem with CBF
+Each cell in a CBF takes up 4 bits even though most of the values are zero. We can see that a CBF does poor utilization of space and reaches atleast 4x the size of a SBF.
 
-> Deletion of False Positives can lead to False Negatives
+# Solution: d-left Counting Bloom Filter (dl-CBF)
+d-left hashing is an "almost perfect" dynamic hash function [2]. We need a dynamic hash function because elements can be added and deleted from our set $$S$$ and a static hash function does not perform well for a changing set.
 
-Another problem with CBF is its size. A CBF takes 4x space when compared to a simple bit array Bloom Filter discussed above. Since most of the cells (4 bits) in a CBF remain zero, it leads to inefficient utilization of space.
+Steps for dl-CBF construction:
+1. Take a hash table with $$n \times d$$ buckets. Each cell in a bucket stores a fingerprint and count.
+2. Divide the hash table into $$d$$ subtables. Each subtable has $$n$$ buckets.
+3. For each element $$X_i$$ in the set, use hash function of the form $$H: U \rightarrow [B]^d \times R$$
+   1. $$B_i$$ denotes bucket index and has range $$[0,n-1]$$. We get $$d$$ bucket indices, one for each subtable.
+   2. $$R$$ is the fingerprint of each element of size $$k$$ bits.
+   4. Search $$d$$ buckets to see if $$R$$ exists in any bucket. If yes, increment the count of that cell.
+   5. If the fingerprint $$R$$ is not found, select the least loaded bucket from our $$d$$ choices. If two or more buckets have the same load, select the left most bucket to add the fingerprint.
+   
+> Always-go-left is a biased choice in case of clash. This may seem counter-intuitive to our objective of balancing load uniformly across buckets. Curious readers can read this [[3]](https://dl.acm.org/citation.cfm?id=792546) interesting paper.
 
-# d-left Counting Bloom Filter (dl-CBF)
- 
+![cbf](/img/aww-board.png){: width="100%"}
+*{1011} is fingerprint of $$X1$$ which is put into the first bucket since it was the left-most least loaded*
+
+To check membership of an element $$y$$, get its target $$[B]^d \times R$$ using the hash function and search $$d$$ buckets parallely. If $$R$$ is found, we say $$y \in S$$\\
+To delete an element, we follow similar procedure to CBF. Use the hash function to find the bucket which holds $$R$$ and decrement the count.
+
+**Comparision with CBF**:
+Since elements are hashed to $$B \times R$$ bits instead of a single index in CBF, the probability of collisions in d-left hashing is very low (upper bounded by $$2^{-B\times R}$$). This allows us to have **smaller 2 bit counters** as compared to the 4 bit counters necessary in CBF to prevent overflow. Experiments by Bonomi et.al [1] reveal that
+1. dl-CBF of the same size as CBF achieves 100 times smaller false positive probability.
+2. For the same false positive probability, dl-CBF utilizes half the space of a conventional CBF.
+
+**Probability of False positive**\\
+
+$$ P_{fp} = 1 - \bigg( 1 - \frac{1}{BR} \bigg)^{|S|} \approx \frac{m}{BR} $$
+
+Result is easy to derive. Refer to [1] for more details.
 
 # Cuckoo Filter
+There is trade off between table occupancy and size of fingerprint. If we want higher table occupancy, we have to increase size of fingerprints to maintain the same probability of false positives.
 
+# References
+[1] F. Bonomi, M. Mitzenmacher, R. Panigrahy, S. Singh, G. Varghese, "An improved construction for counting bloom filters", Proc. ESA'06, pp. 684-695.\\
+[2] Vöcking, Berthold. “How asymmetry helps load balancing.” J. ACM 50 (2003): 568-589.
