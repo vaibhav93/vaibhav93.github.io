@@ -7,7 +7,7 @@ permalink: /about/
 <img class="col one right" src="/img/profile.png">
 
 <br/>
-I am a graduate student in Computer Science at University of Massachusetts, Amherst.
+I am a graduate student majoring in Computer Science at University of Massachusetts, Amherst.
 
 <br/>
 <hr/>
