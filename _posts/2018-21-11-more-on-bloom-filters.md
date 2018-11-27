@@ -67,7 +67,7 @@ To check membership of an element $$y$$, get its target $$\{b_1,b_2,..b_d\} \tim
 To delete an element, we follow similar procedure to CBF. Use the hash function to find the bucket which holds $$r_y$$ and decrement the count.
 
 **Comparision with CBF**:
-Since elements are hashed to $$log_2(n) \times k$$ bits instead of a single index in CBF, the probability of collisions in d-left hashing is very low (upper bounded by $$2^{-log_2(n)\times k}$$). This allows us to have **smaller 2 bit counters** as compared to the 4 bit counters necessary in CBF to prevent overflow. Experiments by Bonomi et.al [1] reveal that
+Since elements are finally hashed to $$log_2(n) \times k$$ bits (after choosing the bucket) instead of a single index in CBF, the probability of collisions in d-left hashing is very low (upper bounded by $$2^{-log_2(n)\times k}$$). This allows us to have **smaller 2 bit counters** as compared to the 4 bit counters necessary in CBF to prevent overflow. Experiments by Bonomi et.al [1] reveal that
 1. dl-CBF of the same size as CBF achieves 100 times smaller false positive probability.
 2. For the same false positive probability, dl-CBF utilizes half the space of a conventional CBF.
 
