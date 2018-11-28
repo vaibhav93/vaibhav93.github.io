@@ -73,7 +73,7 @@ Since elements are finally hashed to $$log_2(n) \times k$$ bits (after choosing 
 
 **Probability of False positive**
 
-$$ P_{fp} = 1 - \bigg( 1 - \frac{1}{|B||R|} \bigg)^{|S|} \approx \frac{m}{nd|R|} $$
+$$ P_{fp} = 1 - \bigg( 1 - \frac{1}{nd \times |R|} \bigg)^{|S|} \approx \frac{m}{nd \times |R|} $$
 
 Result is easy to derive. Refer to [1] for more details.
 
